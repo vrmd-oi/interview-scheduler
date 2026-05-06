@@ -328,6 +328,7 @@ tr:last-child td{border-bottom:none}
         <div class="summary-row"><span class="summary-label">Time Slot</span><span class="summary-val" id="sumSlot">—</span></div>
         <div class="summary-row"><span class="summary-label">Platform</span><span class="summary-val" id="sumPlatform">—</span></div>
       </div>
+      <div id="bookAlert2"></div>
       <div style="display:flex;justify-content:space-between;margin-top:1.25rem">
         <button class="btn btn-outline" style="color:var(--gray-600);border-color:var(--gray-300)" onclick="goStep(1)">← Back</button>
         <button class="btn btn-blue" onclick="goStep(3)">Next: Confirm →</button>
@@ -583,7 +584,7 @@ let state = {
   selectedSlot: null,
   selectedPlatform: '',
   appointments: JSON.parse(localStorage.getItem('appointments') || '[]'),
-  blockedDates: [],
+  blockedDates: JSON.parse(localStorage.getItem('blockedDates') || '[]'),
   adminLoggedIn: false,
   lockKey: null,
   calYear: new Date().getFullYear(),
@@ -660,7 +661,7 @@ function validateStep1() {
 
 function validateStep2() {
   if (!state.selectedDate || !state.selectedSlot) {
-    showInlineAlert('Please select a date and time slot.','warning','bookAlert');
+    showInlineAlert('Please select a date and time slot.','warning','bookAlert2');
     return false;
   }
   return true;
@@ -934,33 +935,36 @@ async function submitBooking() {
     status: 'Booked', bookedAt: new Date().toISOString()
   };
 
-  // 1. Send the data to the Google Sheet
+  // 1. Optimistically add the booking to local state RIGHT NOW so the slot
+  //    is immediately blocked in the UI regardless of GAS round-trip timing.
+  state.appointments.push(appt);
+  localStorage.setItem('appointments', JSON.stringify(state.appointments));
+  renderCalendar();
+  if (state.selectedDate) renderSlots(state.selectedDate);
+
+  // 2. Send the data to the Google Sheet (fire-and-forget; no-cors means no response body).
   await sendToGAS('book', appt);
 
-  // 2. WAIT for the Sheet to process, then REFRESH the data
+  // 3. Move to the Success screen immediately.
+  document.querySelectorAll('.step-content').forEach(s => s.classList.remove('active'));
+  document.getElementById('sc-done').classList.add('active');
+
+  // 4. Update the confirmation text.
+  document.getElementById('confirmedEmail').textContent = appt.email;
+  document.getElementById('confirmedDetails').innerHTML = `
+    <div class="summary-row"><span class="summary-label">Appointment ID</span><span class="summary-val">${appt.id}</span></div>
+    <div class="summary-row"><span class="summary-label">Date &amp; Time</span><span class="summary-val">${formatDateDisplay(appt.date)} at ${appt.time}</span></div>
+  `;
+
+  releaseLock();
+
+  // 5. After a generous delay (5 s) do a background sync from Sheets to
+  //    catch any concurrent bookings. If Sheets hasn't committed yet the
+  //    optimistic entry keeps the slot blocked in the meantime.
   setTimeout(async () => {
-    // This pulls the fresh list of booked slots from your Sheet
-    await refreshDataFromGAS(); 
-    
-    // 3. Move to the Success screen
-    document.querySelectorAll('.step-content').forEach(s => s.classList.remove('active'));
-    document.getElementById('sc-done').classList.add('active');
-    
-    // 4. Update the confirmation text
-    document.getElementById('confirmedEmail').textContent = appt.email;
-    document.getElementById('confirmedDetails').innerHTML = `
-      <div class="summary-row"><span class="summary-label">Appointment ID</span><span class="summary-val">${appt.id}</span></div>
-      <div class="summary-row"><span class="summary-label">Date & Time</span><span class="summary-val">${formatDateDisplay(appt.date)} at ${appt.time}</span></div>
-    `;
-    
-    releaseLock();
-    // 5. Re-render the calendar so the taken slot is now gray
-    renderCalendar(); 
-  if (state.selectedDate) {
-      renderSlots(state.selectedDate); 
-    }
-  }, 1500);
-  }
+    await refreshDataFromGAS();
+  }, 5000);
+}
 
 function resetBooking() {
   // 1. Clear all text, date, and tel inputs
@@ -990,10 +994,17 @@ function resetBooking() {
     if (i === 0) s.classList.add('active');
   });
 
-  // 5. Scroll back to the top of the booking area
+  // 5. Re-enable the submit button so it works for the next booking
+  const btn = document.getElementById('submitBtn');
+  if (btn) {
+    btn.innerHTML = '📧 Confirm & Send Email';
+    btn.disabled = false;
+  }
+
+  // 6. Scroll back to the top of the booking area
   document.getElementById('bookingSection').scrollIntoView({ behavior: 'smooth' });
 
-  // 6. Refresh the calendar to show the newly booked slot as "Taken"
+  // 7. Refresh the calendar to show the newly booked slot as "Taken"
   refreshDataFromGAS();
 }
 
@@ -1001,20 +1012,31 @@ async function refreshDataFromGAS() {
   if (!CONFIG.GAS_URL) return;
   
   try {
-    // We call the 'getslots' action we defined in Code.gs
     const response = await fetch(CONFIG.GAS_URL + '?action=getslots');
     const data = await response.json();
     
     if (data) {
-      // Update the system state with data from the Google Sheet
-      state.appointments = data.slots || [];
-      state.blockedDates = data.blockedDates || [];
+      const gasSlots = data.slots || [];
+
+      // Merge: keep any optimistically-added local appointments whose IDs are
+      // not yet in the Sheets response (GAS may not have committed them yet).
+      // Once Sheets returns them, the dedup below keeps only one copy.
+      const gasIds = new Set(gasSlots.map(a => a.id));
+      const localOnly = state.appointments.filter(a => !gasIds.has(a.id));
+      state.appointments = [...gasSlots, ...localOnly];
+
+      // Preserve any locally-added blocked dates not yet committed to Sheets.
+      const gasBlockedDates = data.blockedDates || [];
+      const gasBlockedSet = new Set(gasBlockedDates.map(b => b.date));
+      const localOnlyBlocked = state.blockedDates.filter(b => {
+        const bd = typeof b === 'object' ? b.date : b;
+        return !gasBlockedSet.has(bd);
+      });
+      state.blockedDates = [...gasBlockedDates, ...localOnlyBlocked];
       
-      // Update local storage so it persists slightly better
       localStorage.setItem('appointments', JSON.stringify(state.appointments));
       localStorage.setItem('blockedDates', JSON.stringify(state.blockedDates));
       
-      // Refresh the UI
       if (typeof renderCalendar === 'function') renderCalendar();
       if (state.adminLoggedIn) renderAdminPanel();
     }
@@ -1158,29 +1180,50 @@ async function addBlockDate() {
     return;
   }
 
-  // 1. Send to Google Sheets
+  // 1. Optimistically add to local state so the calendar blocks it immediately.
+  const alreadyBlocked = state.blockedDates.some(b => {
+    const bd = typeof b === 'object' ? b.date : b;
+    return bd === d;
+  });
+  if (!alreadyBlocked) {
+    state.blockedDates.push({ date: d, reason: r });
+    localStorage.setItem('blockedDates', JSON.stringify(state.blockedDates));
+    renderCalendar();
+    renderBlockedDates();
+  }
+
+  // 2. Send to Google Sheets.
   await sendToGAS('blockdate', { date: d, reason: r });
-  
-  // 2. Wait a split second for GAS to process and then Refresh everything
-  // This ensures the blocked date is pulled from the "Source of Truth" (the Sheet)
+
+  // 3. Clear inputs immediately.
+  document.getElementById('blockDateInput').value = '';
+  document.getElementById('blockReason').value = '';
+  alert('Date blocked successfully');
+
+  // 4. Background sync after 5s to confirm with Sheets.
   setTimeout(async () => {
     await refreshDataFromGAS();
-    // 3. Clear the inputs
-    document.getElementById('blockDateInput').value = '';
-    document.getElementById('blockReason').value = '';
-    alert('Date blocked successfully');
-  }, 1000);
+  }, 5000);
 }
 async function removeBlockDate(d) {
   if(!confirm('Are you sure you want to unblock this date?')) return;
-  
-  // 1. Send the command to remove
+
+  // 1. Optimistically remove from local state so the calendar unblocks immediately.
+  state.blockedDates = state.blockedDates.filter(b => {
+    const bd = typeof b === 'object' ? b.date : b;
+    return bd !== d;
+  });
+  localStorage.setItem('blockedDates', JSON.stringify(state.blockedDates));
+  renderCalendar();
+  renderBlockedDates();
+
+  // 2. Send the command to remove from Sheets.
   await sendToGAS('unblockdate', { date: d });
-  
-  // 2. Refresh from Sheet
+
+  // 3. Background sync after 5s to confirm with Sheets.
   setTimeout(async () => {
     await refreshDataFromGAS();
-  }, 1000);
+  }, 5000);
 }
 function renderBlockedDates() {
   const el=document.getElementById('blockedDatesList');
