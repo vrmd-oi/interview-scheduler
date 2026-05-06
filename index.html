@@ -583,7 +583,7 @@ let state = {
   selectedDate: null,
   selectedSlot: null,
   selectedPlatform: '',
-  appointments: JSON.parse(localStorage.getItem('appointments') || '[]'),
+  appointments: [], // Always fetched fresh from Sheets on load — do NOT pre-load from localStorage
   blockedDates: JSON.parse(localStorage.getItem('blockedDates') || '[]'),
   adminLoggedIn: false,
   lockKey: null,
@@ -937,8 +937,7 @@ async function submitBooking() {
 
   // 1. Optimistically add the booking to local state RIGHT NOW so the slot
   //    is immediately blocked in the UI regardless of GAS round-trip timing.
-  state.appointments.push(appt);
-  localStorage.setItem('appointments', JSON.stringify(state.appointments));
+  state.appointments.push(appt); // Optimistic in-memory only — not persisted to localStorage
   renderCalendar();
   if (state.selectedDate) renderSlots(state.selectedDate);
 
@@ -957,10 +956,10 @@ async function submitBooking() {
   `;
 
   releaseLock();
+  stopPolling(); // No need to poll on the success screen
 
   // 5. After a generous delay (5 s) do a background sync from Sheets to
-  //    catch any concurrent bookings. If Sheets hasn't committed yet the
-  //    optimistic entry keeps the slot blocked in the meantime.
+  //    confirm the booking is committed and catch any concurrent bookings.
   setTimeout(async () => {
     await refreshDataFromGAS();
   }, 5000);
@@ -1004,8 +1003,9 @@ function resetBooking() {
   // 6. Scroll back to the top of the booking area
   document.getElementById('bookingSection').scrollIntoView({ behavior: 'smooth' });
 
-  // 7. Refresh the calendar to show the newly booked slot as "Taken"
-  refreshDataFromGAS();
+  // 7. Refresh from Sheets and resume polling
+  await refreshDataFromGAS();
+  startPolling(30000);
 }
 
 async function refreshDataFromGAS() {
@@ -1034,7 +1034,8 @@ async function refreshDataFromGAS() {
       });
       state.blockedDates = [...gasBlockedDates, ...localOnlyBlocked];
       
-      localStorage.setItem('appointments', JSON.stringify(state.appointments));
+      // Only persist blockedDates (admin-controlled, safe to cache).
+      // Appointments are never cached — always fetched live from Sheets.
       localStorage.setItem('blockedDates', JSON.stringify(state.blockedDates));
       
       if (typeof renderCalendar === 'function') renderCalendar();
@@ -1289,7 +1290,12 @@ document.querySelectorAll('.modal-overlay').forEach(m=>{
 // ============================================================
 // HELPERS
 // ============================================================
-function saveAppointments(){localStorage.setItem('appointments',JSON.stringify(state.appointments));}
+function saveAppointments(){
+  // Intentionally not caching appointments in localStorage.
+  // Appointments are always the authoritative list from Google Sheets.
+  // Optimistic entries live only in state.appointments (in-memory) until
+  // the next refreshDataFromGAS() confirms them from Sheets.
+}
 function showInlineAlert(msg,type,target){
   const el=document.getElementById(target);
   if(el){el.innerHTML=`<div class="alert alert-${type}">${msg}</div>`;setTimeout(()=>{el.innerHTML=''},4000);}
@@ -1298,9 +1304,54 @@ function showInlineAlert(msg,type,target){
 // Set max DOB
 document.getElementById('dob').max=new Date().toISOString().split('T')[0];
 
+// ============================================================
+// AUTO-POLL — keep all clients in sync with Google Sheets
+// ============================================================
+let pollInterval = null;
+
+function startPolling(intervalMs) {
+  stopPolling();
+  pollInterval = setInterval(async () => {
+    await refreshDataFromGAS();
+    // If a date is selected on the calendar, re-render the slots panel
+    // so taken slots update live without the user having to click again.
+    if (state.selectedDate) renderSlots(state.selectedDate);
+  }, intervalMs);
+}
+
+function stopPolling() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
 // Run this when the page loads
-window.addEventListener('load', () => {
-  refreshDataFromGAS();
+window.addEventListener('load', async () => {
+  await refreshDataFromGAS();
+  startPolling(30000); // poll every 30 s by default
+});
+
+// Poll faster (every 10 s) when the user is on Step 2 choosing a slot —
+// this is the critical window where a race condition can occur.
+// Slow back down on other steps.
+const _origGoStep = goStep;
+function goStep(n) {
+  _origGoStep(n);
+  if (n === 2) {
+    startPolling(10000); // 10 s while picking a slot
+  } else {
+    startPolling(30000); // 30 s on other steps
+  }
+}
+
+// Stop polling when the tab is hidden (saves quota), resume when visible.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopPolling();
+  } else {
+    refreshDataFromGAS();
+    if (state.selectedDate) renderSlots(state.selectedDate);
+    const onSlotStep = state.currentStep === 2;
+    startPolling(onSlotStep ? 10000 : 30000);
+  }
 });
 </script>
 
