@@ -635,9 +635,9 @@ function goStep(n) {
     else if (i+1<n) s.classList.add('done');
   });
   document.getElementById('sc-'+n).classList.add('active');
-  if (n===2) { acquireLock(); initCalendar(); startPolling(10000); } // Poll every 10s on slot step
-  if (n===3) { buildFinalSummary(); startPolling(30000); }
-  if (n===1) startPolling(30000);
+  if (n===2) { acquireLock(); initCalendar(); startPolling(8000); } // Poll every 8s on slot step
+  if (n===3) { buildFinalSummary(); startPolling(15000); }
+  if (n===1) startPolling(15000);
 }
 
 function validateStep1() {
@@ -715,17 +715,35 @@ function formatTime(h,m) {
   return `${hh}:${m.toString().padStart(2,'0')} ${ampm}`;
 }
 
+function normalizeTimeStr(t) {
+  if (!t) return '';
+  let s = String(t).trim();
+  // Handle Date objects serialized as ISO strings by GAS
+  if (s.includes('T')) {
+    // e.g. "1899-12-30T08:00:00.000Z" — extract time part
+    const d = new Date(s);
+    if (!isNaN(d)) {
+      // Convert from UTC to PH time
+      const ph = new Date(d.getTime() + (8 * 60 * 60 * 1000));
+      let hh = ph.getUTCHours();
+      const mm = ph.getUTCMinutes().toString().padStart(2, '0');
+      const ampm = hh < 12 ? 'AM' : 'PM';
+      hh = hh % 12 || 12;
+      return `${hh}:${mm} ${ampm}`;
+    }
+  }
+  // Remove leading zero from hour: "08:00 AM" → "8:00 AM"
+  s = s.replace(/^0(\d):/, '$1:');
+  return s;
+}
+
 function isSlotTaken(dateStr, time) {
+  const normTime = normalizeTimeStr(time);
   return state.appointments.some(a => {
-    // 1. Normalize Date: Ensure both are YYYY-MM-DD
     const dbDate = typeof a.date === 'string' ? a.date.split('T')[0] : toDateStr(new Date(a.date));
-    
-    // 2. Normalize Time: Remove leading zeros and extra spaces
-    // This makes "08:00 AM" and "8:00 AM" the same
-    const normalizeTime = (t) => String(t).trim().replace(/^0/, '');
-    
-    return dbDate === dateStr && 
-           normalizeTime(a.time) === normalizeTime(time) && 
+    const dbTime = normalizeTimeStr(a.time);
+    return dbDate === dateStr &&
+           dbTime === normTime &&
            a.status !== 'Cancelled';
   });
 }
@@ -957,34 +975,48 @@ async function submitBooking() {
     status: 'Booked', bookedAt: new Date().toISOString()
   };
 
-  // 1. Optimistically add the booking to local state RIGHT NOW so the slot
-  //    is immediately blocked in the UI regardless of GAS round-trip timing.
-  state.appointments.push(appt); // Optimistic in-memory only — not persisted to localStorage
+  // 1. Optimistically add to local state so THIS browser blocks the slot immediately.
+  state.appointments.push(appt);
   renderCalendar();
   if (state.selectedDate) renderSlots(state.selectedDate);
 
-  // 2. Send the data to the Google Sheet (fire-and-forget; no-cors means no response body).
+  // 2. Fire the POST to Google Sheets (no-cors — we cannot read the response).
   await sendToGAS('book', appt);
 
-  // 3. Move to the Success screen immediately.
+  // 3. Show a "verifying" message while we confirm the booking landed in Sheets.
+  btn.innerHTML = '<span class="spinner"></span> Verifying...';
+
+  // 4. Keep polling ACTIVE during verification so OTHER browsers also see the slot grey out.
+  //    We do NOT call stopPolling() here.
+  startPolling(5000); // fast poll while verifying
+
+  // 5. Poll GAS until the appointment ID appears in the sheet (max 20 s).
+  const confirmed = await verifyBookingInSheets(appt.id, 20000);
+
+  // 6. Do a final authoritative sync so all local state matches Sheets exactly.
+  await refreshDataFromGAS();
+
+  // 7. Back to normal poll rate.
+  startPolling(15000);
+
+  if (!confirmed) {
+    // GAS didn't confirm in time — show a soft warning but don't block the user.
+    // The email will still send because GAS processes async; slot is likely saved.
+    console.warn('[submitBooking] Booking not confirmed in 20s — may still be processing.');
+  }
+
+  // 8. Advance to Success screen.
   document.querySelectorAll('.step-content').forEach(s => s.classList.remove('active'));
   document.getElementById('sc-done').classList.add('active');
 
-  // 4. Update the confirmation text.
   document.getElementById('confirmedEmail').textContent = appt.email;
   document.getElementById('confirmedDetails').innerHTML = `
     <div class="summary-row"><span class="summary-label">Appointment ID</span><span class="summary-val">${appt.id}</span></div>
     <div class="summary-row"><span class="summary-label">Date &amp; Time</span><span class="summary-val">${formatDateDisplay(appt.date)} at ${appt.time}</span></div>
+    <div class="summary-row"><span class="summary-label">Status</span><span class="summary-val">${confirmed ? '✅ Confirmed in system' : '⏳ Processing — email will arrive shortly'}</span></div>
   `;
 
   releaseLock();
-  stopPolling(); // No need to poll on the success screen
-
-  // 5. After a generous delay (5 s) do a background sync from Sheets to
-  //    confirm the booking is committed and catch any concurrent bookings.
-  setTimeout(async () => {
-    await refreshDataFromGAS();
-  }, 5000);
 }
 
 async function resetBooking() {
@@ -1008,24 +1040,24 @@ async function resetBooking() {
   // 4. Reset the UI Steps
   state.currentStep = 1;
   document.querySelectorAll('.step-content').forEach(s => s.classList.remove('active'));
-  document.getElementById('sc-1').classList.add('active'); // Show first step
+  document.getElementById('sc-1').classList.add('active');
 
   document.querySelectorAll('.step').forEach((s, i) => {
     s.classList.remove('active', 'done');
     if (i === 0) s.classList.add('active');
   });
 
-  // 5. Re-enable the submit button so it works for the next booking
+  // 5. Re-enable the submit button
   const btn = document.getElementById('submitBtn');
   if (btn) {
     btn.innerHTML = '📧 Confirm & Send Email';
     btn.disabled = false;
   }
 
-  // 6. Scroll back to the top of the booking area
+  // 6. Scroll back to top of booking area
   document.getElementById('bookingSection').scrollIntoView({ behavior: 'smooth' });
 
-  // 7. Refresh from Sheets and resume polling
+  // 7. Authoritative sync from Sheets so the re-rendered calendar reflects confirmed bookings
   await refreshDataFromGAS();
   startPolling(30000);
 }
@@ -1042,7 +1074,6 @@ async function refreshDataFromGAS() {
 
       // Merge: keep any optimistically-added local appointments whose IDs are
       // not yet in the Sheets response (GAS may not have committed them yet).
-      // Once Sheets returns them, the dedup below keeps only one copy.
       const gasIds = new Set(gasSlots.map(a => a.id));
       const localOnly = state.appointments.filter(a => !gasIds.has(a.id));
       state.appointments = [...gasSlots, ...localOnly];
@@ -1057,13 +1088,20 @@ async function refreshDataFromGAS() {
       state.blockedDates = [...gasBlockedDates, ...localOnlyBlocked];
       
       // Only persist blockedDates (admin-controlled, safe to cache).
-      // Appointments are never cached — always fetched live from Sheets.
       localStorage.setItem('blockedDates', JSON.stringify(state.blockedDates));
-      
+
+      // Always re-render calendar
       if (typeof renderCalendar === 'function') renderCalendar();
-      // Re-render slot panel so taken slots grey out for ALL open browsers
-      if (state.selectedDate && typeof renderSlots === 'function') renderSlots(state.selectedDate);
-      if (state.adminLoggedIn) renderAdminPanel();
+
+      // Always re-render slot panel so taken slots grey out in ALL open browsers
+      if (state.selectedDate && typeof renderSlots === 'function') {
+        renderSlots(state.selectedDate);
+      }
+
+      // Re-render admin panel if logged in
+      if (state.adminLoggedIn && typeof renderAdminPanel === 'function') {
+        renderAdminPanel();
+      }
     }
   } catch (e) {
     console.error("Failed to fetch data from GAS:", e);
@@ -1288,18 +1326,41 @@ function loadPrintList() {
 async function sendToGAS(action, data) {
   if (!CONFIG.GAS_URL) {
     console.log('[GAS Disabled] Would send:', action, data);
-    return;
+    return { success: true, _simulated: true };
   }
   try {
+    // Use no-cors POST (GAS Web Apps require this from external origins).
+    // We cannot read the response body with no-cors, so we verify by polling.
     await fetch(CONFIG.GAS_URL, {
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action, ...data})
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...data })
     });
+    return { success: true };
   } catch(e) {
-    console.error('GAS error:', e);
+    console.error('GAS POST error:', e);
+    return { success: false, error: e.message };
   }
+}
+
+// Poll GAS until the booking with `apptId` appears in the sheet,
+// or until `maxWaitMs` has elapsed. Returns true if confirmed.
+async function verifyBookingInSheets(apptId, maxWaitMs = 20000) {
+  const deadline = Date.now() + maxWaitMs;
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    attempt++;
+    await delay(attempt === 1 ? 2000 : 3000); // first check after 2s, then every 3s
+    try {
+      const res = await fetch(CONFIG.GAS_URL + '?action=getslots');
+      const data = await res.json();
+      const slots = data.slots || [];
+      if (slots.some(s => s.id === apptId)) return true;
+    } catch(e) { /* network blip — keep trying */ }
+  }
+  return false;
 }
 
 // ============================================================
@@ -1329,7 +1390,7 @@ function showInlineAlert(msg,type,target){
 document.getElementById('dob').max=new Date().toISOString().split('T')[0];
 
 // ============================================================
-// AUTO-POLL — keep all clients in sync with Google Sheets
+// AUTO-POLL — keep ALL clients in sync with Google Sheets
 // ============================================================
 let pollInterval = null;
 
@@ -1337,9 +1398,6 @@ function startPolling(intervalMs) {
   stopPolling();
   pollInterval = setInterval(async () => {
     await refreshDataFromGAS();
-    // If a date is selected on the calendar, re-render the slots panel
-    // so taken slots update live without the user having to click again.
-    if (state.selectedDate) renderSlots(state.selectedDate);
   }, intervalMs);
 }
 
@@ -1347,23 +1405,23 @@ function stopPolling() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
-// Run this when the page loads
+// Run this when the page loads — always start polling
 window.addEventListener('load', async () => {
   await refreshDataFromGAS();
-  startPolling(30000); // poll every 30 s by default
+  startPolling(15000); // poll every 15s by default (fast enough to catch other bookings)
 });
 
-// Polling rate is now adjusted inside the original goStep() above.
-
-// Stop polling when the tab is hidden (saves quota), resume when visible.
+// Stop polling when the tab is hidden (saves quota), resume immediately when visible.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stopPolling();
   } else {
-    refreshDataFromGAS();
-    if (state.selectedDate) renderSlots(state.selectedDate);
+    // Immediately sync when tab becomes visible again
+    refreshDataFromGAS().then(() => {
+      if (state.selectedDate) renderSlots(state.selectedDate);
+    });
     const onSlotStep = state.currentStep === 2;
-    startPolling(onSlotStep ? 10000 : 30000);
+    startPolling(onSlotStep ? 8000 : 15000);
   }
 });
 </script>
