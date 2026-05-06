@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interview Appointment System</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0f1f3d;
+  --navy-mid: #1a3060;
+  --blue: #1e4db7;
+  --blue-light: #2563eb;
+  --gold: #c9a84c;
+  --gold-light: #f0c96e;
+  --cream: #fdf6ec;
+  --white: #ffffff;
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-400: #94a3b8;
+  --gray-600: #475569;
+  --gray-800: #1e293b;
+  --success: #059669;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+  --shadow: 0 4px 16px rgba(0,0,0,.1);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.15);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--gray-800);min-height:100vh}
+/* ---- HEADER ---- */
+.site-header{background:var(--navy);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.logo{display:flex;align-items:center;gap:.75rem}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold-light));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.logo-text{font-family:'DM Serif Display',serif;color:var(--white);font-size:1.1rem;line-height:1.2}
+.logo-sub{font-family:'DM Sans',sans-serif;font-size:.7rem;color:var(--gold-light);letter-spacing:.08em;text-transform:uppercase}
+.nav-tabs{display:flex;gap:.25rem}
+.nav-tab{padding:.5rem 1rem;border-radius:6px;font-size:.85rem;font-weight:500;color:var(--gray-400);cursor:pointer;transition:all .2s;border:none;background:none}
+.nav-tab:hover{color:var(--white);background:rgba(255,255,255,.08)}
+.nav-tab.active{color:var(--white);background:rgba(255,255,255,.12)}
+/* ---- PAGES ---- */
+.page{display:none;animation:fadeIn .3s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* ---- HERO SECTION ---- */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 60%,var(--blue) 100%);padding:3rem 2rem;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-50%;left:-20%;width:60%;height:200%;background:radial-gradient(ellipse,rgba(201,168,76,.07) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:.5rem;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);border-radius:20px;padding:.35rem .9rem;font-size:.75rem;color:var(--gold-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:1.25rem}
+.hero h1{font-family:'DM Serif Display',serif;font-size:2.4rem;color:var(--white);line-height:1.15;margin-bottom:.75rem}
+.hero p{color:rgba(255,255,255,.7);font-size:1rem;max-width:520px;margin:0 auto 2rem}
+.hero-actions{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+/* ---- BUTTONS ---- */
+.btn{padding:.65rem 1.5rem;border-radius:var(--radius-sm);font-size:.9rem;font-weight:500;cursor:pointer;transition:all .2s;border:none;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:.5rem}
+.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);font-weight:600}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(201,168,76,.4)}
+.btn-outline{background:transparent;border:1.5px solid rgba(255,255,255,.3);color:var(--white)}
+.btn-outline:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.5)}
+.btn-blue{background:var(--blue-light);color:var(--white)}
+.btn-blue:hover{background:var(--blue);transform:translateY(-1px)}
+.btn-danger{background:var(--danger);color:var(--white)}
+.btn-danger:hover{background:#b91c1c}
+.btn-success{background:var(--success);color:var(--white)}
+.btn-sm{padding:.4rem 1rem;font-size:.82rem}
+/* ---- MAIN LAYOUT ---- */
+.container{max-width:1100px;margin:0 auto;padding:2rem}
+.section-title{font-family:'DM Serif Display',serif;font-size:1.6rem;color:var(--navy);margin-bottom:.35rem}
+.section-sub{color:var(--gray-600);font-size:.9rem;margin-bottom:1.75rem}
+/* ---- CARD ---- */
+.card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.75rem;margin-bottom:1.5rem}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--gray-200)}
+.card-title{font-size:1rem;font-weight:600;color:var(--navy)}
+/* ---- FORM ---- */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.form-group{display:flex;flex-direction:column;gap:.4rem}
+.form-group.full{grid-column:1/-1}
+label{font-size:.82rem;font-weight:500;color:var(--gray-600);letter-spacing:.02em}
+input,select,textarea{padding:.6rem .85rem;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-size:.9rem;font-family:'DM Sans',sans-serif;color:var(--gray-800);transition:border-color .2s,box-shadow .2s;background:var(--white)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue-light);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+input::placeholder{color:var(--gray-400)}
+.required{color:var(--danger)}
+/* ---- CALENDAR ---- */
+.calendar-wrap{display:grid;grid-template-columns:1fr 300px;gap:1.5rem}
+.calendar-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem}
+.cal-nav{background:var(--gray-100);border:none;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.cal-nav:hover{background:var(--gray-200)}
+.month-title{font-family:'DM Serif Display',serif;font-size:1.2rem;color:var(--navy)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-day-name{text-align:center;font-size:.72rem;font-weight:600;color:var(--gray-400);padding:.4rem 0;letter-spacing:.05em;text-transform:uppercase}
+.cal-day{text-align:center;padding:.5rem;border-radius:6px;cursor:pointer;font-size:.88rem;transition:all .15s;border:1.5px solid transparent;min-height:38px;display:flex;align-items:center;justify-content:center;font-weight:500}
+.cal-day:not(.empty):not(.disabled):not(.past):hover{background:rgba(37,99,235,.08);border-color:var(--blue-light);color:var(--blue)}
+.cal-day.today{font-weight:700;color:var(--blue);border-color:rgba(37,99,235,.3)}
+.cal-day.selected{background:var(--blue);color:var(--white)!important;border-color:var(--blue)}
+.cal-day.has-slots{position:relative}
+.cal-day.has-slots::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gold)}
+.cal-day.full-slots::after{background:var(--danger)}
+.cal-day.disabled,.cal-day.past,.cal-day.empty{color:var(--gray-200);cursor:default;background:none}
+.cal-day.weekend{color:var(--gray-300);cursor:default}
+.cal-day.blocked{background:var(--gray-100);color:var(--gray-300);cursor:not-allowed}
+/* ---- SLOTS ---- */
+.slots-panel{border:1.5px solid var(--gray-200);border-radius:var(--radius);padding:1.25rem}
+.slots-date{font-weight:600;color:var(--navy);margin-bottom:.25rem;font-size:.95rem}
+.slots-sub{font-size:.78rem;color:var(--gray-400);margin-bottom:1rem}
+.slots-period{margin-bottom:1rem}
+.slots-period-label{font-size:.72rem;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem}
+.slots-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
+.slot-btn{padding:.45rem .5rem;border-radius:6px;font-size:.8rem;font-weight:500;text-align:center;cursor:pointer;transition:all .15s;border:1.5px solid var(--gray-200);background:var(--white);color:var(--gray-800);font-family:'DM Sans',sans-serif}
+.slot-btn:hover:not(.taken):not(.locked){border-color:var(--blue-light);background:rgba(37,99,235,.06);color:var(--blue)}
+.slot-btn.selected{background:var(--blue);color:var(--white);border-color:var(--blue)}
+.slot-btn.taken{background:var(--gray-100);color:var(--gray-300);cursor:not-allowed;border-color:var(--gray-100)}
+.slot-btn.locked{background:rgba(220,38,38,.05);color:var(--danger);border-color:rgba(220,38,38,.2);cursor:not-allowed;font-size:.72rem}
+.no-date-msg{text-align:center;padding:2rem 1rem;color:var(--gray-400);font-size:.88rem}
+/* ---- BOOKING SUMMARY ---- */
+.booking-summary{background:linear-gradient(135deg,rgba(15,31,61,.04),rgba(30,77,183,.06));border:1.5px solid rgba(30,77,183,.15);border-radius:var(--radius-sm);padding:1rem 1.25rem;margin-top:1.25rem}
+.summary-row{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;padding:.2rem 0}
+.summary-label{color:var(--gray-600)}
+.summary-val{font-weight:600;color:var(--navy)}
+/* ---- BADGE ---- */
+.badge{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .65rem;border-radius:20px;font-size:.75rem;font-weight:500}
+.badge-success{background:rgba(5,150,105,.1);color:var(--success)}
+.badge-danger{background:rgba(220,38,38,.1);color:var(--danger)}
+.badge-warning{background:rgba(217,119,6,.1);color:var(--warning)}
+.badge-blue{background:rgba(37,99,235,.1);color:var(--blue-light)}
+.badge-gray{background:var(--gray-100);color:var(--gray-600)}
+/* ---- TABLE ---- */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;padding:.75rem 1rem;background:var(--navy);color:var(--white);font-weight:500;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase}
+th:first-child{border-radius:8px 0 0 0}
+th:last-child{border-radius:0 8px 0 0}
+td{padding:.75rem 1rem;border-bottom:1px solid var(--gray-100);vertical-align:middle}
+tr:hover td{background:var(--gray-50)}
+tr:last-child td{border-bottom:none}
+.action-btns{display:flex;gap:.4rem;flex-wrap:wrap}
+/* ---- STATS ---- */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.stat-card{background:var(--white);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow-sm);border-left:4px solid var(--blue-light)}
+.stat-card.green{border-left-color:var(--success)}
+.stat-card.red{border-left-color:var(--danger)}
+.stat-card.gold{border-left-color:var(--gold)}
+.stat-val{font-size:2rem;font-weight:700;color:var(--navy);line-height:1}
+.stat-label{font-size:.78rem;color:var(--gray-400);margin-top:.25rem;text-transform:uppercase;letter-spacing:.05em}
+/* ---- MODAL ---- */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:100%;max-width:520px;padding:2rem;transform:translateY(16px);transition:transform .25s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-title{font-family:'DM Serif Display',serif;font-size:1.3rem;color:var(--navy);margin-bottom:.5rem}
+.modal-sub{color:var(--gray-600);font-size:.88rem;margin-bottom:1.5rem}
+.modal-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem}
+/* ---- ALERT ---- */
+.alert{padding:.85rem 1.1rem;border-radius:var(--radius-sm);font-size:.88rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.6rem}
+.alert-success{background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.25);color:var(--success)}
+.alert-danger{background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);color:var(--danger)}
+.alert-info{background:rgba(37,99,235,.07);border:1px solid rgba(37,99,235,.2);color:var(--blue-light)}
+.alert-warning{background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);color:var(--warning)}
+/* ---- STEPS ---- */
+.steps{display:flex;gap:0;margin-bottom:2rem;position:relative}
+.steps::before{content:'';position:absolute;top:16px;left:0;right:0;height:2px;background:var(--gray-200)}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;gap:.4rem;position:relative;z-index:1}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--gray-200);color:var(--gray-600);font-size:.82rem;font-weight:600;display:flex;align-items:center;justify-content:center;transition:all .3s}
+.step.active .step-num{background:var(--blue);color:var(--white)}
+.step.done .step-num{background:var(--success);color:var(--white)}
+.step-label{font-size:.72rem;font-weight:500;color:var(--gray-400);text-align:center;letter-spacing:.03em}
+.step.active .step-label{color:var(--blue)}
+.step.done .step-label{color:var(--success)}
+/* ---- PLATFORM SELECT ---- */
+.platform-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem;margin-top:.5rem}
+.platform-opt{border:2px solid var(--gray-200);border-radius:var(--radius-sm);padding:.75rem;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:.6rem;font-size:.85rem;font-weight:500;color:var(--gray-600)}
+.platform-opt:hover{border-color:var(--blue-light);color:var(--blue)}
+.platform-opt.selected{border-color:var(--blue);background:rgba(37,99,235,.06);color:var(--blue)}
+.platform-icon{font-size:1.3rem}
+/* ---- LOCK BANNER ---- */
+.lock-banner{background:var(--warning);color:var(--navy);padding:.65rem 1.25rem;text-align:center;font-size:.85rem;font-weight:500;display:none}
+.lock-banner.visible{display:block}
+/* ---- ADMIN LOGIN ---- */
+.admin-login-wrap{max-width:400px;margin:4rem auto}
+/* ---- MISC ---- */
+.divider{border:none;border-top:1px solid var(--gray-200);margin:1.25rem 0}
+.text-sm{font-size:.82rem}
+.text-muted{color:var(--gray-400)}
+.flex{display:flex}
+.items-center{align-items:center}
+.gap-2{gap:.5rem}
+.mt-1{margin-top:.25rem}
+.tooltip{position:relative}
+.tooltip:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--navy);color:var(--white);font-size:.72rem;padding:.3rem .6rem;border-radius:4px;pointer-events:none}
+.step-content{display:none}
+.step-content.active{display:block}
+@media(max-width:768px){
+  .form-grid{grid-template-columns:1fr}
+  .calendar-wrap{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .nav-tabs{display:none}
+}
+.spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);border-top-color:var(--white);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.config-note{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.3);border-radius:var(--radius-sm);padding:1rem 1.25rem;font-size:.82rem;color:var(--gray-600);margin-bottom:1.25rem}
+.config-note code{background:var(--gray-100);padding:.1rem .35rem;border-radius:4px;font-family:monospace;font-size:.8rem;color:var(--navy)}
+</style>
+</head>
+<body>
+
+<!-- LOCK BANNER -->
+<div class="lock-banner" id="lockBanner">⚠ The scheduling window is currently in use by another user. Please wait a moment before trying again.</div>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="logo">
+    <div class="logo-icon">📋</div>
+    <div>
+      <div class="logo-text">PVAO Online Interview Scheduler</div>
+      <div class="logo-sub">Appointment Management System</div>
+    </div>
+  </div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('book')">Book Appointment</button>
+    <button class="nav-tab" onclick="showPage('admin')" id="adminNavBtn">Admin Panel</button>
+  </nav>
+</header>
+
+<!-- ========== BOOKING PAGE ========== -->
+<div class="page active" id="page-book">
+  <div class="hero">
+    <div class="hero-badge">📅 Online Appointment System</div>
+    <h1>Schedule Your Interview</h1>
+    <p>Book your preferred interview slot quickly and securely. You will receive a confirmation email once your appointment is set.</p>
+    <div class="hero-actions">
+      <button class="btn btn-primary" onclick="startBooking()">📅 Book an Appointment</button>
+      <button class="btn btn-outline" onclick="scrollToInfo()">ℹ Learn More</button>
+    </div>
+  </div>
+
+  <div class="container" id="bookingSection" style="display:none">
+    <!-- STEPS -->
+    <div class="steps" id="stepsBar">
+      <div class="step active" id="step-ind-1"><div class="step-num">1</div><div class="step-label">Your Info</div></div>
+      <div class="step" id="step-ind-2"><div class="step-num">2</div><div class="step-label">Select Slot</div></div>
+      <div class="step" id="step-ind-3"><div class="step-num">3</div><div class="step-label">Confirm</div></div>
+    </div>
+
+    <!-- STEP 1: CLIENT INFO -->
+    <div class="step-content active card" id="sc-1">
+      <div class="card-header">
+        <span class="card-title">👤 Personal Information</span>
+        <span class="text-sm text-muted">All fields marked <span class="required">*</span> are required</span>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Last Name <span class="required">*</span></label>
+          <input type="text" id="lname" placeholder="e.g. dela Cruz" oninput="autoUserId()" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>First Name <span class="required">*</span></label>
+          <input type="text" id="fname" placeholder="e.g. Maria" oninput="autoUserId()" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Middle Name</label>
+          <input type="text" id="mi" placeholder="e.g. Santos" maxlength="12" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Date of Birth <span class="required">*</span></label>
+          <input type="date" id="dob" max="" autocomplete="off">
+        </div>
+        <div class="form-group full">
+          <label>Present Address <span class="required">*</span></label>
+          <input type="text" id="address" placeholder="House/Unit No., Street, Barangay, City/Municipality, Province" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Mobile Number <span class="required">*</span></label>
+          <input type="tel" id="mobile" placeholder="09XX-XXX-XXXX" maxlength="13" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Email Address <span class="required">*</span></label>
+          <input type="email" id="email" placeholder="yourname@email.com" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>User ID <span class="required">*</span></label>
+          <input type="text" id="userid" placeholder="User id/account/number of preferred platform" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Preferred Video Conference Platform <span class="required">*</span></label>
+          <div class="platform-grid">
+            <div class="platform-opt" onclick="selectPlatform(this,'Viber')"><span class="platform-icon">📱</span> Viber</div>
+            <div class="platform-opt" onclick="selectPlatform(this,'Google Meet')"><span class="platform-icon">🎥</span> Google Meet</div>
+            <div class="platform-opt" onclick="selectPlatform(this,'Microsoft Teams')"><span class="platform-icon">💼</span> MS Teams</div>
+            <div class="platform-opt" onclick="selectPlatform(this,'Zoom')"><span class="platform-icon">🔵</span> Zoom</div>
+          </div>
+          <input type="hidden" id="platform">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:1.25rem">
+        <button class="btn btn-blue" onclick="goStep(2)">Next: Select Slot →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: CALENDAR & SLOTS -->
+    <div class="step-content card" id="sc-2">
+      <div class="card-header">
+        <span class="card-title">📅 Choose Your Appointment Slot</span>
+        <span class="text-sm text-muted">Monday–Friday, 8AM–12NN & 1PM–3PM PST</span>
+      </div>
+      <div class="calendar-wrap">
+        <div>
+          <div class="calendar-header">
+            <button class="cal-nav" onclick="prevMonth()">‹</button>
+            <span class="month-title" id="monthTitle"></span>
+            <button class="cal-nav" onclick="nextMonth()">›</button>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div style="margin-top:.75rem;display:flex;gap:1rem;flex-wrap:wrap">
+            <span class="text-sm text-muted flex items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:var(--gold);display:inline-block"></span> Available</span>
+            <span class="text-sm text-muted flex items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:var(--danger);display:inline-block"></span> Fully Booked</span>
+            <span class="text-sm text-muted flex items-center gap-2"><span style="width:10px;height:10px;background:var(--gray-200);border-radius:3px;display:inline-block"></span> Unavailable</span>
+          </div>
+        </div>
+        <div>
+          <div class="slots-panel" id="slotsPanel">
+            <div class="no-date-msg">← Select a date on the calendar to view available slots</div>
+          </div>
+        </div>
+      </div>
+      <div id="selectedSlotSummary" style="display:none" class="booking-summary">
+        <div class="summary-row"><span class="summary-label">Selected Date</span><span class="summary-val" id="sumDate">—</span></div>
+        <div class="summary-row"><span class="summary-label">Time Slot</span><span class="summary-val" id="sumSlot">—</span></div>
+        <div class="summary-row"><span class="summary-label">Platform</span><span class="summary-val" id="sumPlatform">—</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:1.25rem">
+        <button class="btn btn-outline" style="color:var(--gray-600);border-color:var(--gray-300)" onclick="goStep(1)">← Back</button>
+        <button class="btn btn-blue" onclick="goStep(3)">Next: Confirm →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: CONFIRMATION -->
+    <div class="step-content card" id="sc-3">
+      <div class="card-header">
+        <span class="card-title">✅ Confirm Your Appointment</span>
+        <span class="text-sm text-muted">Please review your details before submitting</span>
+      </div>
+      <div class="booking-summary" id="finalSummary"></div>
+      <div id="bookAlert"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:1.25rem">
+        <button class="btn btn-outline" style="color:var(--gray-600);border-color:var(--gray-300)" onclick="goStep(2)">← Back</button>
+        <button class="btn btn-primary" id="submitBtn" onclick="submitBooking()">📧 Confirm & Send Email</button>
+      </div>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="step-content card" id="sc-done" style="text-align:center;padding:3rem 2rem">
+      <div style="font-size:4rem;margin-bottom:1rem">🎉</div>
+      <h2 style="font-family:'DM Serif Display',serif;color:var(--navy);margin-bottom:.5rem">Appointment Confirmed!</h2>
+      <p style="color:var(--gray-600);margin-bottom:1.5rem">A confirmation email has been sent to <strong id="confirmedEmail"></strong>. Please check your inbox (and spam folder).</p>
+      <div class="booking-summary" id="confirmedDetails" style="text-align:left;margin-bottom:1.5rem"></div>
+      <button class="btn btn-blue" onclick="resetBooking()">Book Another Appointment</button>
+    </div>
+  </div>
+
+  <!-- INFO SECTION -->
+  <div class="container" id="infoSection">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:1rem">
+      <div class="card" style="text-align:center;padding:1.5rem">
+        <div style="font-size:2rem;margin-bottom:.75rem">🗓</div>
+        <div style="font-weight:600;color:var(--navy);margin-bottom:.35rem">Flexible Scheduling</div>
+        <div class="text-sm text-muted">Choose from available 10-minute slots, Monday to Friday, 8AM–12NN and 1PM–3PM PST</div>
+      </div>
+      <div class="card" style="text-align:center;padding:1.5rem">
+        <div style="font-size:2rem;margin-bottom:.75rem">📧</div>
+        <div style="font-weight:600;color:var(--navy);margin-bottom:.35rem">Instant Confirmation</div>
+        <div class="text-sm text-muted">Receive an automatic email confirmation with your appointment details right after booking</div>
+      </div>
+      <div class="card" style="text-align:center;padding:1.5rem">
+        <div style="font-size:2rem;margin-bottom:.75rem">📱</div>
+        <div style="font-weight:600;color:var(--navy);margin-bottom:.35rem">Video Conference Ready</div>
+        <div class="text-sm text-muted">Conduct your interview via Viber, Google Meet, Microsoft Teams, or Zoom</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== ADMIN LOGIN ========== -->
+<div class="page" id="page-admin-login">
+  <div class="container">
+    <div class="admin-login-wrap">
+      <div class="card">
+        <div style="text-align:center;margin-bottom:1.5rem">
+          <div style="font-size:2.5rem;margin-bottom:.5rem">🔐</div>
+          <h2 style="font-family:'DM Serif Display',serif;color:var(--navy)">Admin Access</h2>
+          <p class="text-sm text-muted">Enter your credentials to access the admin panel</p>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem">
+          <label>Username</label>
+          <input type="text" id="adminUser" placeholder="admin">
+        </div>
+        <div class="form-group" style="margin-bottom:1.25rem">
+          <label>Password</label>
+          <input type="password" id="adminPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')adminLogin()">
+        </div>
+        <div id="loginAlert"></div>
+        <button class="btn btn-blue" style="width:100%" onclick="adminLogin()">Sign In</button>
+        <p class="text-sm text-muted" style="text-align:center;margin-top:1rem">~Strictly for VRMD Admin use~</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== ADMIN PANEL ========== -->
+<div class="page" id="page-admin">
+  <div class="container">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
+      <div>
+        <h2 class="section-title">Admin Panel</h2>
+        <p class="section-sub">Manage appointments, view statistics, and control scheduling</p>
+      </div>
+      <div style="display:flex;gap:.75rem">
+        <button class="btn btn-blue btn-sm" onclick="printDailyList()">🖨 Print Daily List</button>
+        <button class="btn btn-outline btn-sm" style="color:var(--gray-700);border-color:var(--gray-300)" onclick="adminLogout()">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-val" id="statTotal">0</div>
+        <div class="stat-label">Total Booked</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-val" id="statCompleted">0</div>
+        <div class="stat-label">Completed</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-val" id="statCancelled">0</div>
+        <div class="stat-label">Cancelled</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-val" id="statPending">0</div>
+        <div class="stat-label">Pending</div>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📋 Appointment Records</span>
+        <div style="display:flex;gap:.75rem;align-items:center">
+          <input type="date" id="filterDate" style="padding:.4rem .7rem;font-size:.82rem" onchange="renderTable()">
+          <select id="filterStatus" style="padding:.4rem .7rem;font-size:.82rem" onchange="renderTable()">
+            <option value="">All Status</option>
+            <option value="Booked">Booked</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <button class="btn btn-sm" style="background:var(--gray-100);color:var(--gray-700)" onclick="clearFilters()">Clear</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="appointmentsTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Date & Time</th>
+              <th>Platform</th>
+              <th>Email</th>
+              <th>Mobile</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyTable" style="text-align:center;padding:2.5rem;color:var(--gray-400);display:none">No appointments found for the selected filter.</div>
+    </div>
+
+    <!-- BLOCK DATES -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🚫 Block / Holiday Management</span>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group">
+          <label>Date to Block</label>
+          <input type="date" id="blockDateInput" style="padding:.5rem .8rem">
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <input type="text" id="blockReason" placeholder="e.g. National Holiday, Power Interruption" style="width:260px;padding:.5rem .8rem">
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="addBlockDate()">Block Date</button>
+      </div>
+      <div id="blockedDatesList" style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:.5rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CANCEL MODAL -->
+<div class="modal-overlay" id="cancelModal">
+  <div class="modal">
+    <h3 class="modal-title">Cancel Interview</h3>
+    <p class="modal-sub">Select the reason for cancellation. An email will be automatically sent to the client.</p>
+    <div class="form-group" style="margin-bottom:.75rem">
+      <label>Cancellation Reason <span class="required">*</span></label>
+      <select id="cancelReason">
+        <option value="">— Select reason —</option>
+        <option value="Declared Holiday">Declared Holiday</option>
+        <option value="Power Interruption">Power Interruption</option>
+        <option value="Suspension of Work">Suspension of Work</option>
+        <option value="Force Majeure">Force Majeure / Emergency</option>
+        <option value="Interviewer Unavailable">Interviewer Unavailable</option>
+        <option value="Other">Other (specify below)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Additional Notes (optional)</label>
+      <input type="text" id="cancelNote" placeholder="Add more details if needed...">
+    </div>
+    <div id="cancelAlert"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="color:var(--gray-700);border-color:var(--gray-300)" onclick="closeModal('cancelModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmCancel()">🚫 Cancel Interview & Notify</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPLETE MODAL -->
+<div class="modal-overlay" id="completeModal">
+  <div class="modal">
+    <h3 class="modal-title">Mark as Completed ✅</h3>
+    <p class="modal-sub">Confirm that the interview for <strong id="completeClientName"></strong> has been completed. An automated email will be sent to the client.</p>
+    <div id="completeAlert"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="color:var(--gray-700);border-color:var(--gray-300)" onclick="closeModal('completeModal')">Cancel</button>
+      <button class="btn btn-success" onclick="confirmComplete()">✅ Mark Complete & Notify</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT DAILY LIST -->
+<div class="modal-overlay" id="printModal">
+  <div class="modal" style="max-width:700px">
+    <h3 class="modal-title">Daily Interview List</h3>
+    <div style="display:flex;gap:.75rem;align-items:flex-end;margin-bottom:1.25rem">
+      <div class="form-group">
+        <label>Select Date</label>
+        <input type="date" id="printDate" style="padding:.5rem .8rem" onchange="loadPrintList()">
+      </div>
+      <button class="btn btn-blue btn-sm" onclick="window.print()">🖨 Print</button>
+    </div>
+    <div id="printListContent"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" style="color:var(--gray-700);border-color:var(--gray-300)" onclick="closeModal('printModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURATION - Update these before deployment
+// ============================================================
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzICNmeUvf-4GOlPZUkbFSjN69shY4F_ANJSP28oCIiG-1F92h9xzHqnIDHqIkmZAWG/exec', // Paste your Google Apps Script Web App URL here
+  ADMIN_USER: 'admin',
+  ADMIN_PASS: 'M!st3ry@s0',
+  LOCK_TIMEOUT: 120, // seconds; how long to hold lock
+  BOOKING_CYCLE_DAYS: 10, // days ahead to open slots
+  // Philippines public holidays (MM-DD format, recurring yearly)
+  HOLIDAYS: [
+    '01-01','04-09','05-01','05-27','06-12','08-19','08-26','08-31','11-01','11-02','11-30','12-08','12-24','12-25','12-30','12-31'
+  ],
+  SLOT_INTERVAL: 10, // minutes
+  MORNING_START: 8, MORNING_END: 12, // hour
+  AFTERNOON_START: 13, AFTERNOON_END: 15, // hour
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  currentStep: 1,
+  selectedDate: null,
+  selectedSlot: null,
+  selectedPlatform: '',
+  appointments: JSON.parse(localStorage.getItem('appointments') || '[]'),
+  blockedDates: [],
+  adminLoggedIn: false,
+  lockKey: null,
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
+  activeCancelId: null,
+  activeCompleteId: null,
+};
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showPage(pg) {
+  if (pg === 'admin' && !state.adminLoggedIn) {
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-admin-login').classList.add('active');
+    document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+    event.target.classList.add('active');
+    return;
+  }
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+pg).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  event?.target?.classList.add('active');
+  if (pg==='admin') renderAdminPanel();
+}
+function startBooking() {
+  document.getElementById('bookingSection').style.display='block';
+  document.getElementById('bookingSection').scrollIntoView({behavior:'smooth'});
+  goStep(1);
+  initCalendar();
+}
+function scrollToInfo() {
+  document.getElementById('infoSection').scrollIntoView({behavior:'smooth'});
+}
+
+// ============================================================
+// MULTI-STEP FORM
+// ============================================================
+function goStep(n) {
+  if (n===2 && !validateStep1()) return;
+  if (n===3 && !validateStep2()) return;
+  state.currentStep = n;
+  document.querySelectorAll('.step-content').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.step').forEach((s,i)=>{
+    s.classList.remove('active','done');
+    if (i+1===n) s.classList.add('active');
+    else if (i+1<n) s.classList.add('done');
+  });
+  document.getElementById('sc-'+n).classList.add('active');
+  if (n===2) { acquireLock(); initCalendar(); }
+  if (n===3) buildFinalSummary();
+}
+
+function validateStep1() {
+  const fields = ['lname','fname','dob','address','mobile','email','userid'];
+  for (let f of fields) {
+    if (!document.getElementById(f).value.trim()) {
+      showInlineAlert('Please fill in all required fields.','danger','bookAlert');
+      document.getElementById(f).focus();
+      return false;
+    }
+  }
+  if (!state.selectedPlatform) {
+    showInlineAlert('Please select your preferred video conference platform.','danger','bookAlert');
+    return false;
+  }
+  const email = document.getElementById('email').value;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showInlineAlert('Please enter a valid email address.','danger','bookAlert');
+    return false;
+  }
+  return true;
+}
+
+function validateStep2() {
+  if (!state.selectedDate || !state.selectedSlot) {
+    showInlineAlert('Please select a date and time slot.','warning','bookAlert');
+    return false;
+  }
+  return true;
+}
+
+function selectPlatform(el, name) {
+  document.querySelectorAll('.platform-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  state.selectedPlatform = name;
+  document.getElementById('platform').value = name;
+  document.getElementById('sumPlatform').textContent = name;
+}
+
+function autoUserId() {
+  const l = document.getElementById('lname').value.trim().substring(0,3).toUpperCase();
+  const f = document.getElementById('fname').value.trim().substring(0,2).toUpperCase();
+  if (l && f) document.getElementById('userid').value = l+f+Math.floor(1000+Math.random()*9000);
+}
+
+// ============================================================
+// CALENDAR
+// ============================================================
+function initCalendar() {
+  renderCalendar();
+}
+
+function getSlotKey(dateStr, time) { return `${dateStr}|${time}`; }
+
+function getSlotsForDate(dateStr) {
+  const slots = [];
+  // Morning: 8:00–11:50
+  for (let h=CONFIG.MORNING_START; h<CONFIG.MORNING_END; h++) {
+    for (let m=0; m<60; m+=CONFIG.SLOT_INTERVAL) {
+      slots.push(formatTime(h,m));
+    }
+  }
+  // Afternoon: 13:00–14:50
+  for (let h=CONFIG.AFTERNOON_START; h<CONFIG.AFTERNOON_END; h++) {
+    for (let m=0; m<60; m+=CONFIG.SLOT_INTERVAL) {
+      slots.push(formatTime(h,m));
+    }
+  }
+  return slots;
+}
+
+function formatTime(h,m) {
+  const ampm = h<12?'AM':'PM';
+  const hh = h>12?h-12:h===0?12:h;
+  return `${hh}:${m.toString().padStart(2,'0')} ${ampm}`;
+}
+
+function isSlotTaken(dateStr, time) {
+  return state.appointments.some(a => {
+    // 1. Normalize Date: Ensure both are YYYY-MM-DD
+    const dbDate = typeof a.date === 'string' ? a.date.split('T')[0] : toDateStr(new Date(a.date));
+    
+    // 2. Normalize Time: Remove leading zeros and extra spaces
+    // This makes "08:00 AM" and "8:00 AM" the same
+    const normalizeTime = (t) => String(t).trim().replace(/^0/, '');
+    
+    return dbDate === dateStr && 
+           normalizeTime(a.time) === normalizeTime(time) && 
+           a.status !== 'Cancelled';
+  });
+}
+
+function isHoliday(dateStr) {
+  const md = dateStr.substring(5);
+  return CONFIG.HOLIDAYS.includes(md);
+}
+
+function isBlocked(dateStr) {
+  return state.blockedDates.some(b => {
+    // If b is just a string (date), compare directly. 
+    // If b is an object {date: '...'}, compare the date property.
+    const blockedDate = typeof b === 'object' ? b.date : b;
+    return String(blockedDate).split('T')[0] === dateStr;
+  });
+}
+
+function isWeekend(d) { return d.getDay()===0||d.getDay()===6; }
+
+function getDateAvailability(dateStr) {
+  const slots = getSlotsForDate(dateStr);
+  const taken = slots.filter(s=>isSlotTaken(dateStr,s)).length;
+  if (taken===slots.length) return 'full';
+  if (taken===0) return 'empty';
+  return 'partial';
+}
+
+function renderCalendar() {
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const { calYear: y, calMonth: m } = state;
+  document.getElementById('monthTitle').textContent = `${monthNames[m]} ${y}`;
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML='';
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d=>{
+    const el=document.createElement('div'); el.className='cal-day-name'; el.textContent=d; grid.appendChild(el);
+  });
+  const firstDay = new Date(y,m,1).getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const today = new Date();
+  const todayStr = toDateStr(today);
+
+  // Compute booking window: next 10 working days from today
+  const maxDate = getMaxBookingDate();
+
+  for (let i=0;i<firstDay;i++){
+    const el=document.createElement('div');el.className='cal-day empty';grid.appendChild(el);
+  }
+  for (let d=1;d<=daysInMonth;d++){
+    const date=new Date(y,m,d);
+    const dateStr=toDateStr(date);
+    const el=document.createElement('div');
+    el.className='cal-day';
+    el.textContent=d;
+    const isPast = date < new Date(todayStr);
+    const isWknd = isWeekend(date);
+    const isHol = isHoliday(dateStr);
+    const isBlk = isBlocked(dateStr);
+    const isBeyond = date > maxDate;
+
+    if (isPast||isWknd||isHol||isBlk||isBeyond) {
+      el.classList.add(isWknd?'weekend':'disabled');
+      if (isHol||isBlk) el.classList.add('blocked');
+    } else {
+      const avail = getDateAvailability(dateStr);
+      el.classList.add('has-slots');
+      if (avail==='full') el.classList.add('full-slots');
+      el.onclick=()=>selectDate(dateStr,el);
+    }
+    if (dateStr===todayStr) el.classList.add('today');
+    if (dateStr===state.selectedDate) el.classList.add('selected');
+    grid.appendChild(el);
+  }
+}
+
+function getMaxBookingDate() {
+  const d = new Date();
+  let count=0;
+  while(count<CONFIG.BOOKING_CYCLE_DAYS){
+    d.setDate(d.getDate()+1);
+    if(!isWeekend(d)&&!isHoliday(toDateStr(d))&&!isBlocked(toDateStr(d))) count++;
+  }
+  return d;
+}
+
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function prevMonth() { 
+  state.calMonth--; 
+  if(state.calMonth<0){state.calMonth=11;state.calYear--;}
+  renderCalendar();
+}
+function nextMonth() { 
+  state.calMonth++; 
+  if(state.calMonth>11){state.calMonth=0;state.calYear++;}
+  renderCalendar();
+}
+
+function selectDate(dateStr, el) {
+  state.selectedDate=dateStr;
+  state.selectedSlot=null;
+  document.querySelectorAll('.cal-day').forEach(d=>d.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('sumDate').textContent=formatDateDisplay(dateStr);
+  renderSlots(dateStr);
+  document.getElementById('selectedSlotSummary').style.display='none';
+}
+
+function formatDateDisplay(ds) {
+  const d=new Date(ds+'T00:00:00');
+  return d.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+
+function renderSlots(dateStr) {
+  const panel=document.getElementById('slotsPanel');
+  const allSlots=getSlotsForDate(dateStr);
+  const morning=allSlots.filter(s=>s.includes('AM'));
+  const afternoon=allSlots.filter(s=>!s.includes('AM'));
+  let html=`<div class="slots-date">${formatDateDisplay(dateStr)}</div>
+  <div class="slots-sub">Available 10-minute slots (PST)</div>
+  <div class="slots-period">
+    <div class="slots-period-label">☀️ Morning (8:00 AM – 12:00 NN)</div>
+    <div class="slots-grid">`;
+  morning.forEach(s=>{
+    const taken=isSlotTaken(dateStr,s);
+    html+=`<button class="slot-btn${taken?' taken':''}" ${taken?'disabled':''} onclick="selectSlot(this,'${s}')">${s}${taken?' ✗':''}</button>`;
+  });
+  html+=`</div></div>
+  <div class="slots-period">
+    <div class="slots-period-label">🌅 Afternoon (1:00 PM – 3:00 PM)</div>
+    <div class="slots-grid">`;
+  afternoon.forEach(s=>{
+    const taken=isSlotTaken(dateStr,s);
+    html+=`<button class="slot-btn${taken?' taken':''}" ${taken?'disabled':''} onclick="selectSlot(this,'${s}')">${s}${taken?' ✗':''}</button>`;
+  });
+  html+=`</div></div>`;
+  panel.innerHTML=html;
+}
+
+function selectSlot(el, time) {
+  document.querySelectorAll('.slot-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  state.selectedSlot=time;
+  document.getElementById('sumSlot').textContent=time;
+  document.getElementById('sumPlatform').textContent=state.selectedPlatform||'—';
+  document.getElementById('selectedSlotSummary').style.display='block';
+}
+
+// ============================================================
+// LOCKING (Session-based, simulated with localStorage)
+// ============================================================
+let lockInterval=null;
+function acquireLock() {
+  const now=Date.now();
+  const lock=JSON.parse(localStorage.getItem('schedLock')||'{}');
+  if (lock.ts && now-lock.ts < CONFIG.LOCK_TIMEOUT*1000 && lock.id!==state.lockKey) {
+    document.getElementById('lockBanner').classList.add('visible');
+  } else {
+    state.lockKey=Math.random().toString(36).substr(2,9);
+    localStorage.setItem('schedLock',JSON.stringify({id:state.lockKey,ts:now}));
+    document.getElementById('lockBanner').classList.remove('visible');
+    clearInterval(lockInterval);
+    lockInterval=setInterval(renewLock,30000);
+  }
+}
+function renewLock() {
+  const lock=JSON.parse(localStorage.getItem('schedLock')||'{}');
+  if(lock.id===state.lockKey) localStorage.setItem('schedLock',JSON.stringify({id:state.lockKey,ts:Date.now()}));
+}
+function releaseLock() {
+  const lock=JSON.parse(localStorage.getItem('schedLock')||'{}');
+  if(lock.id===state.lockKey) localStorage.removeItem('schedLock');
+  clearInterval(lockInterval);
+}
+window.addEventListener('beforeunload',releaseLock);
+
+// ============================================================
+// BOOKING
+// ============================================================
+function buildFinalSummary() {
+  const d=v('lname')+', '+v('fname')+(v('mi')?' '+v('mi')+'.'  :'');
+  document.getElementById('finalSummary').innerHTML=`
+    <div class="summary-row"><span class="summary-label">Full Name</span><span class="summary-val">${d}</span></div>
+    <div class="summary-row"><span class="summary-label">Date of Birth</span><span class="summary-val">${v('dob')}</span></div>
+    <div class="summary-row"><span class="summary-label">Email</span><span class="summary-val">${v('email')}</span></div>
+    <div class="summary-row"><span class="summary-label">Mobile</span><span class="summary-val">${v('mobile')}</span></div>
+    <div class="summary-row"><span class="summary-label">Address</span><span class="summary-val">${v('address')}</span></div>
+    <div class="summary-row"><span class="summary-label">Platform</span><span class="summary-val">${state.selectedPlatform}</span></div>
+    <div class="summary-row"><span class="summary-label">Appointment Date</span><span class="summary-val">${formatDateDisplay(state.selectedDate)}</span></div>
+    <div class="summary-row"><span class="summary-label">Time Slot</span><span class="summary-val">${state.selectedSlot}</span></div>
+    <div class="summary-row"><span class="summary-label">User ID</span><span class="summary-val">${v('userid')}</span></div>
+  `;
+}
+function v(id){return document.getElementById(id).value.trim();}
+
+async function submitBooking() {
+  const btn = document.getElementById('submitBtn');
+  btn.innerHTML = '<span class="spinner"></span> Processing...';
+  btn.disabled = true;
+
+  const appt = {
+    id: 'APT-' + Date.now(),
+    lname: v('lname'), fname: v('fname'), mi: v('mi'),
+    dob: v('dob'), address: v('address'), mobile: v('mobile'),
+    email: v('email'), userid: v('userid'), platform: state.selectedPlatform,
+    date: state.selectedDate, time: state.selectedSlot,
+    status: 'Booked', bookedAt: new Date().toISOString()
+  };
+
+  // 1. Send the data to the Google Sheet
+  await sendToGAS('book', appt);
+
+  // 2. WAIT for the Sheet to process, then REFRESH the data
+  setTimeout(async () => {
+    // This pulls the fresh list of booked slots from your Sheet
+    await refreshDataFromGAS(); 
+    
+    // 3. Move to the Success screen
+    document.querySelectorAll('.step-content').forEach(s => s.classList.remove('active'));
+    document.getElementById('sc-done').classList.add('active');
+    
+    // 4. Update the confirmation text
+    document.getElementById('confirmedEmail').textContent = appt.email;
+    document.getElementById('confirmedDetails').innerHTML = `
+      <div class="summary-row"><span class="summary-label">Appointment ID</span><span class="summary-val">${appt.id}</span></div>
+      <div class="summary-row"><span class="summary-label">Date & Time</span><span class="summary-val">${formatDateDisplay(appt.date)} at ${appt.time}</span></div>
+    `;
+    
+    releaseLock();
+    // 5. Re-render the calendar so the taken slot is now gray
+    renderCalendar(); 
+  if (state.selectedDate) {
+      renderSlots(state.selectedDate); 
+    }
+  }, 1500);
+  }
+
+function resetBooking() {
+  // 1. Clear all text, date, and tel inputs
+  const fields = ['lname', 'fname', 'mi', 'dob', 'address', 'mobile', 'email', 'userid'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // 2. Reset the Platform UI selection
+  document.querySelectorAll('.platform-opt').forEach(o => o.classList.remove('selected'));
+  const platformHiddenInput = document.getElementById('platform');
+  if (platformHiddenInput) platformHiddenInput.value = '';
+
+  // 3. Reset internal state variables
+  state.selectedDate = null;
+  state.selectedSlot = null;
+  state.selectedPlatform = '';
+
+  // 4. Reset the UI Steps
+  state.currentStep = 1;
+  document.querySelectorAll('.step-content').forEach(s => s.classList.remove('active'));
+  document.getElementById('sc-1').classList.add('active'); // Show first step
+
+  document.querySelectorAll('.step').forEach((s, i) => {
+    s.classList.remove('active', 'done');
+    if (i === 0) s.classList.add('active');
+  });
+
+  // 5. Scroll back to the top of the booking area
+  document.getElementById('bookingSection').scrollIntoView({ behavior: 'smooth' });
+
+  // 6. Refresh the calendar to show the newly booked slot as "Taken"
+  refreshDataFromGAS();
+}
+
+async function refreshDataFromGAS() {
+  if (!CONFIG.GAS_URL) return;
+  
+  try {
+    // We call the 'getslots' action we defined in Code.gs
+    const response = await fetch(CONFIG.GAS_URL + '?action=getslots');
+    const data = await response.json();
+    
+    if (data) {
+      // Update the system state with data from the Google Sheet
+      state.appointments = data.slots || [];
+      state.blockedDates = data.blockedDates || [];
+      
+      // Update local storage so it persists slightly better
+      localStorage.setItem('appointments', JSON.stringify(state.appointments));
+      localStorage.setItem('blockedDates', JSON.stringify(state.blockedDates));
+      
+      // Refresh the UI
+      if (typeof renderCalendar === 'function') renderCalendar();
+      if (state.adminLoggedIn) renderAdminPanel();
+    }
+  } catch (e) {
+    console.error("Failed to fetch data from GAS:", e);
+  }
+}
+
+// ============================================================
+// ADMIN
+// ============================================================
+function adminLogin() {
+  const u=document.getElementById('adminUser').value;
+  const p=document.getElementById('adminPass').value;
+  if (u===CONFIG.ADMIN_USER && p===CONFIG.ADMIN_PASS) {
+    state.adminLoggedIn=true;
+    document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active'));
+    document.getElementById('page-admin').classList.add('active');
+    document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('adminNavBtn').classList.add('active');
+    renderAdminPanel();
+  } else {
+    document.getElementById('loginAlert').innerHTML=`<div class="alert alert-danger">❌ Invalid credentials. Please try again.</div>`;
+  }
+}
+function adminLogout() {
+  state.adminLoggedIn = false;
+  
+  // Clear the login fields so the next admin starts fresh
+  document.getElementById('adminUser').value = '';
+  document.getElementById('adminPass').value = '';
+  
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  document.getElementById('page-book').classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.nav-tab').classList.add('active');
+}
+
+function renderAdminPanel() {
+  updateStats();
+  renderTable();
+  renderBlockedDates();
+}
+
+function updateStats() {
+  const a=state.appointments;
+  document.getElementById('statTotal').textContent=a.length;
+  document.getElementById('statCompleted').textContent=a.filter(x=>x.status==='Completed').length;
+  document.getElementById('statCancelled').textContent=a.filter(x=>x.status==='Cancelled').length;
+  document.getElementById('statPending').textContent=a.filter(x=>x.status==='Booked').length;
+}
+
+function renderTable() {
+  const filterDate=document.getElementById('filterDate').value;
+  const filterStatus=document.getElementById('filterStatus').value;
+  let data=[...state.appointments];
+  if(filterDate) data=data.filter(a=>a.date===filterDate);
+  if(filterStatus) data=data.filter(a=>a.status===filterStatus);
+  data.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  const tbody=document.getElementById('tableBody');
+  tbody.innerHTML='';
+  if(!data.length){
+    document.getElementById('emptyTable').style.display='block';
+    document.querySelector('#appointmentsTable').style.display='none';
+    return;
+  }
+  document.getElementById('emptyTable').style.display='none';
+  document.querySelector('#appointmentsTable').style.display='table';
+  data.forEach(a=>{
+    const badgeCls=a.status==='Completed'?'badge-success':a.status==='Cancelled'?'badge-danger':'badge-blue';
+    const icon=a.status==='Completed'?'✅':a.status==='Cancelled'?'🚫':'📅';
+    tbody.innerHTML+=`<tr>
+      <td><strong>${a.lname}, ${a.fname}</strong><br><small class="text-muted">${a.userid}</small></td>
+      <td>${formatDateDisplay(a.date)}<br><strong>${a.time}</strong></td>
+      <td>${a.platform}</td>
+      <td style="font-size:.82rem">${a.email}</td>
+      <td style="font-size:.82rem">${a.mobile}</td>
+      <td><span class="badge ${badgeCls}">${icon} ${a.status}</span></td>
+      <td><div class="action-btns">
+        ${a.status==='Booked'?`<button class="btn btn-success btn-sm" onclick="openComplete('${a.id}')">✅ Done</button>
+        <button class="btn btn-danger btn-sm" onclick="openCancel('${a.id}')">🚫 Cancel</button>`:''}
+        ${a.status==='Cancelled'?`<span class="text-sm text-muted">${a.cancelReason||'—'}</span>`:''}
+      </div></td>
+    </tr>`;
+  });
+}
+
+function clearFilters() {
+  document.getElementById('filterDate').value='';
+  document.getElementById('filterStatus').value='';
+  renderTable();
+}
+
+// ---- COMPLETE ----
+function openComplete(id) {
+  state.activeCompleteId=id;
+  const a=state.appointments.find(x=>x.id===id);
+  document.getElementById('completeClientName').textContent=`${a.fname} ${a.lname}`;
+  openModal('completeModal');
+}
+async function confirmComplete() {
+  const a=state.appointments.find(x=>x.id===state.activeCompleteId);
+  a.status='Completed'; a.completedAt=new Date().toISOString();
+  saveAppointments();
+  await sendToGAS('complete',a);
+  closeModal('completeModal');
+  renderAdminPanel();
+  renderCalendar();
+}
+
+// ---- CANCEL ----
+function openCancel(id) {
+  state.activeCancelId=id;
+  document.getElementById('cancelReason').value='';
+  document.getElementById('cancelNote').value='';
+  openModal('cancelModal');
+}
+async function confirmCancel() {
+  const reason=document.getElementById('cancelReason').value;
+  if(!reason){
+    document.getElementById('cancelAlert').innerHTML=`<div class="alert alert-danger">Please select a cancellation reason.</div>`;
+    return;
+  }
+  const note=document.getElementById('cancelNote').value;
+  const a=state.appointments.find(x=>x.id===state.activeCancelId);
+  a.status='Cancelled'; a.cancelReason=reason+(note?' — '+note:''); a.cancelledAt=new Date().toISOString();
+  saveAppointments();
+  await sendToGAS('cancel',a);
+  closeModal('cancelModal');
+  renderAdminPanel();
+  renderCalendar();
+}
+
+// ---- BLOCK DATES ----
+async function addBlockDate() {
+  const d = document.getElementById('blockDateInput').value;
+  const r = document.getElementById('blockReason').value || 'Blocked by Admin';
+  
+  if (!d) {
+    alert('Please select a date to block.');
+    return;
+  }
+
+  // 1. Send to Google Sheets
+  await sendToGAS('blockdate', { date: d, reason: r });
+  
+  // 2. Wait a split second for GAS to process and then Refresh everything
+  // This ensures the blocked date is pulled from the "Source of Truth" (the Sheet)
+  setTimeout(async () => {
+    await refreshDataFromGAS();
+    // 3. Clear the inputs
+    document.getElementById('blockDateInput').value = '';
+    document.getElementById('blockReason').value = '';
+    alert('Date blocked successfully');
+  }, 1000);
+}
+async function removeBlockDate(d) {
+  if(!confirm('Are you sure you want to unblock this date?')) return;
+  
+  // 1. Send the command to remove
+  await sendToGAS('unblockdate', { date: d });
+  
+  // 2. Refresh from Sheet
+  setTimeout(async () => {
+    await refreshDataFromGAS();
+  }, 1000);
+}
+function renderBlockedDates() {
+  const el=document.getElementById('blockedDatesList');
+  el.innerHTML='';
+  state.blockedDates.forEach(b=>{
+    el.innerHTML+=`<span class="badge badge-danger" style="cursor:pointer;gap:.5rem" title="${b.reason}">
+      🗓 ${b.date} — ${b.reason}
+      <span onclick="removeBlockDate('${b.date}')" style="margin-left:.3rem;font-weight:700;cursor:pointer">✕</span>
+    </span>`;
+  });
+  if(!state.blockedDates.length) el.innerHTML='<span class="text-sm text-muted">No blocked dates.</span>';
+}
+
+// ---- PRINT LIST ----
+function printDailyList() {
+  document.getElementById('printDate').value=toDateStr(new Date());
+  loadPrintList();
+  openModal('printModal');
+}
+function loadPrintList() {
+  const d=document.getElementById('printDate').value;
+  if(!d){document.getElementById('printListContent').innerHTML='';return;}
+  const list=state.appointments.filter(a=>a.date===d).sort((a,b)=>a.time.localeCompare(b.time));
+  const el=document.getElementById('printListContent');
+  if(!list.length){el.innerHTML='<p class="text-muted text-sm" style="padding:1rem 0">No appointments on this date.</p>';return;}
+  let html=`<table><thead><tr><th>#</th><th>Name</th><th>Time</th><th>Platform</th><th>Email</th><th>Status</th></tr></thead><tbody>`;
+  list.forEach((a,i)=>{
+    html+=`<tr><td>${i+1}</td><td>${a.lname}, ${a.fname}</td><td>${a.time}</td><td>${a.platform}</td><td>${a.email}</td><td>${a.status}</td></tr>`;
+  });
+  html+=`</tbody></table>`;
+  el.innerHTML=html;
+}
+
+// ============================================================
+// GOOGLE APPS SCRIPT INTEGRATION
+// ============================================================
+async function sendToGAS(action, data) {
+  if (!CONFIG.GAS_URL) {
+    console.log('[GAS Disabled] Would send:', action, data);
+    return;
+  }
+  try {
+    await fetch(CONFIG.GAS_URL, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action, ...data})
+    });
+  } catch(e) {
+    console.error('GAS error:', e);
+  }
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+});
+
+// ============================================================
+// HELPERS
+// ============================================================
+function saveAppointments(){localStorage.setItem('appointments',JSON.stringify(state.appointments));}
+function showInlineAlert(msg,type,target){
+  const el=document.getElementById(target);
+  if(el){el.innerHTML=`<div class="alert alert-${type}">${msg}</div>`;setTimeout(()=>{el.innerHTML=''},4000);}
+}
+
+// Set max DOB
+document.getElementById('dob').max=new Date().toISOString().split('T')[0];
+
+// Run this when the page loads
+window.addEventListener('load', () => {
+  refreshDataFromGAS();
+});
+</script>
+
+</body>
+</html>
