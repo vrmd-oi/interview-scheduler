@@ -716,24 +716,54 @@ function formatTime(h,m) {
 }
 
 function normalizeTimeStr(t) {
-  if (!t) return '';
+  if (t == null || t === '') return '';
   let s = String(t).trim();
-  // Handle Date objects serialized as ISO strings by GAS
-  if (s.includes('T')) {
-    // e.g. "1899-12-30T08:00:00.000Z" — extract time part
-    const d = new Date(s);
-    if (!isNaN(d)) {
-      // Convert from UTC to PH time
-      const ph = new Date(d.getTime() + (8 * 60 * 60 * 1000));
-      let hh = ph.getUTCHours();
-      const mm = ph.getUTCMinutes().toString().padStart(2, '0');
-      const ampm = hh < 12 ? 'AM' : 'PM';
-      hh = hh % 12 || 12;
-      return `${hh}:${mm} ${ampm}`;
+
+  // --- Case 1: GAS returned a Sheets time coerced to an ISO string ---
+  // Google Sheets time cells become Date objects in GAS. When serialised to
+  // JSON they look like "1899-12-30T05:00:00.000Z" (Sheets epoch + UTC offset).
+  // The ONLY safe way to read the actual clock time is from the HH:MM:SS part
+  // of the ISO string BEFORE any timezone conversion, because GAS's
+  // normalizeTimeStr() in Code.gs already formatted it correctly as "h:mm a".
+  // So if we see a raw ISO string here it means GAS did NOT format it → parse
+  // the time portion directly from the string characters (no Date constructor).
+  if (s.includes('T') && s.includes('-')) {
+    // Extract "HH:MM" from the ISO string without using new Date()
+    const timePart = s.split('T')[1] || '';           // "05:00:00.000Z"
+    const [hRaw, mRaw] = timePart.split(':');
+    let h = parseInt(hRaw, 10);
+    const m = parseInt(mRaw, 10);
+    if (!isNaN(h) && !isNaN(m)) {
+      // The Sheets epoch for time-only cells uses 1899-12-30 as the base date.
+      // Times are stored in UTC in the JSON, so h=5 means 05:00 UTC.
+      // Sheets stores "1:00 PM" (PH, UTC+8) as UTC 05:00 on 1899-12-30.
+      // So we convert: PH_hour = UTC_hour + 8 (mod 24).
+      // BUT: if the time string came from GAS normalizeTimeStr it's already
+      // a plain "1:00 PM" string and won't have a 'T', so this branch is only
+      // reached for raw coerced values.
+      h = (h + 8) % 24;
+      const ampm = h < 12 ? 'AM' : 'PM';
+      const hh = h % 12 || 12;
+      return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`;
     }
   }
-  // Remove leading zero from hour: "08:00 AM" → "8:00 AM"
+
+  // --- Case 2: plain string like "1:00 PM", "01:00 PM", "13:00" ---
+  // Remove leading zero from hour so "08:00 AM" → "8:00 AM"
   s = s.replace(/^0(\d):/, '$1:');
+
+  // Convert 24-hour "13:00" style (no AM/PM) to 12-hour
+  if (!/AM|PM/i.test(s)) {
+    const [hRaw, mRaw] = s.split(':');
+    let h = parseInt(hRaw, 10);
+    const m = parseInt((mRaw || '0'), 10);
+    if (!isNaN(h)) {
+      const ampm = h < 12 ? 'AM' : 'PM';
+      const hh = h % 12 || 12;
+      return `${hh}:${m.toString().padStart(2, '0')} ${ampm}`;
+    }
+  }
+
   return s;
 }
 
