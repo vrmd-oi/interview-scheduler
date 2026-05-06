@@ -97,6 +97,7 @@ input::placeholder{color:var(--gray-400)}
 .cal-day.has-slots{position:relative}
 .cal-day.has-slots::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--gold)}
 .cal-day.full-slots::after{background:var(--danger)}
+.cal-day.full-slots{cursor:not-allowed;opacity:.6;pointer-events:none}
 .cal-day.disabled,.cal-day.past,.cal-day.empty{color:var(--gray-200);cursor:default;background:none}
 .cal-day.weekend{color:var(--gray-300);cursor:default}
 .cal-day.blocked{background:var(--gray-100);color:var(--gray-300);cursor:not-allowed}
@@ -217,8 +218,8 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
   <nav class="nav-tabs">
-    <button class="nav-tab active" onclick="showPage('book')">Book Appointment</button>
-    <button class="nav-tab" onclick="showPage('admin')" id="adminNavBtn">Admin Panel</button>
+    <button class="nav-tab active" onclick="showPage('book',this)">Book Appointment</button>
+    <button class="nav-tab" onclick="showPage('admin',this)" id="adminNavBtn">Admin Panel</button>
   </nav>
 </header>
 
@@ -596,18 +597,18 @@ let state = {
 // ============================================================
 // NAVIGATION
 // ============================================================
-function showPage(pg) {
+function showPage(pg, triggerEl) {
   if (pg === 'admin' && !state.adminLoggedIn) {
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById('page-admin-login').classList.add('active');
     document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-    event.target.classList.add('active');
+    if (triggerEl) triggerEl.classList.add('active');
     return;
   }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+pg).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  event?.target?.classList.add('active');
+  if (triggerEl) triggerEl.classList.add('active');
   if (pg==='admin') renderAdminPanel();
 }
 function startBooking() {
@@ -634,8 +635,9 @@ function goStep(n) {
     else if (i+1<n) s.classList.add('done');
   });
   document.getElementById('sc-'+n).classList.add('active');
-  if (n===2) { acquireLock(); initCalendar(); }
-  if (n===3) buildFinalSummary();
+  if (n===2) { acquireLock(); initCalendar(); startPolling(10000); } // Poll every 10s on slot step
+  if (n===3) { buildFinalSummary(); startPolling(30000); }
+  if (n===1) startPolling(30000);
 }
 
 function validateStep1() {
@@ -790,8 +792,13 @@ function renderCalendar() {
     } else {
       const avail = getDateAvailability(dateStr);
       el.classList.add('has-slots');
-      if (avail==='full') el.classList.add('full-slots');
-      el.onclick=()=>selectDate(dateStr,el);
+      if (avail==='full') {
+        el.classList.add('full-slots');
+        // Full days: visually marked but NOT clickable (no slots to pick)
+        el.style.cursor = 'not-allowed';
+      } else {
+        el.onclick=()=>selectDate(dateStr,el);
+      }
     }
     if (dateStr===todayStr) el.classList.add('today');
     if (dateStr===state.selectedDate) el.classList.add('selected');
@@ -826,10 +833,11 @@ function nextMonth() {
 
 function selectDate(dateStr, el) {
   state.selectedDate=dateStr;
-  state.selectedSlot=null;
+  state.selectedSlot=null; // Clear any previously selected slot
   document.querySelectorAll('.cal-day').forEach(d=>d.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('sumDate').textContent=formatDateDisplay(dateStr);
+  document.getElementById('sumSlot').textContent='—';
   renderSlots(dateStr);
   document.getElementById('selectedSlotSummary').style.display='none';
 }
@@ -866,6 +874,13 @@ function renderSlots(dateStr) {
 }
 
 function selectSlot(el, time) {
+  // Guard: re-check live state in case another user booked this slot since last render
+  if (isSlotTaken(state.selectedDate, time)) {
+    // Re-render to show the slot as taken immediately
+    renderSlots(state.selectedDate);
+    showInlineAlert('⚠ Sorry, that slot was just taken. Please choose another.','warning','bookAlert2');
+    return;
+  }
   document.querySelectorAll('.slot-btn').forEach(b=>b.classList.remove('selected'));
   el.classList.add('selected');
   state.selectedSlot=time;
@@ -923,6 +938,13 @@ function v(id){return document.getElementById(id).value.trim();}
 
 async function submitBooking() {
   const btn = document.getElementById('submitBtn');
+
+  // Final race-condition guard: re-check live state before writing to Sheets
+  if (isSlotTaken(state.selectedDate, state.selectedSlot)) {
+    showInlineAlert('⚠ This slot was just booked by another user. Please go back and select a different slot.','danger','bookAlert');
+    return;
+  }
+
   btn.innerHTML = '<span class="spinner"></span> Processing...';
   btn.disabled = true;
 
@@ -965,7 +987,7 @@ async function submitBooking() {
   }, 5000);
 }
 
-function resetBooking() {
+async function resetBooking() {
   // 1. Clear all text, date, and tel inputs
   const fields = ['lname', 'fname', 'mi', 'dob', 'address', 'mobile', 'email', 'userid'];
   fields.forEach(id => {
@@ -1039,6 +1061,8 @@ async function refreshDataFromGAS() {
       localStorage.setItem('blockedDates', JSON.stringify(state.blockedDates));
       
       if (typeof renderCalendar === 'function') renderCalendar();
+      // Re-render slot panel so taken slots grey out for ALL open browsers
+      if (state.selectedDate && typeof renderSlots === 'function') renderSlots(state.selectedDate);
       if (state.adminLoggedIn) renderAdminPanel();
     }
   } catch (e) {
@@ -1329,18 +1353,7 @@ window.addEventListener('load', async () => {
   startPolling(30000); // poll every 30 s by default
 });
 
-// Poll faster (every 10 s) when the user is on Step 2 choosing a slot —
-// this is the critical window where a race condition can occur.
-// Slow back down on other steps.
-const _origGoStep = goStep;
-function goStep(n) {
-  _origGoStep(n);
-  if (n === 2) {
-    startPolling(10000); // 10 s while picking a slot
-  } else {
-    startPolling(30000); // 30 s on other steps
-  }
-}
+// Polling rate is now adjusted inside the original goStep() above.
 
 // Stop polling when the tab is hidden (saves quota), resume when visible.
 document.addEventListener('visibilitychange', () => {
