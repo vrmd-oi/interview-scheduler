@@ -938,32 +938,16 @@ function selectSlot(el, time) {
 }
 
 // ============================================================
-// LOCKING (Session-based, simulated with localStorage)
+// LOCKING — server-side only (LockService in GAS).
+// The old localStorage-based lock was per-browser only and gave
+// false confidence — it never blocked two different machines.
+// Real duplicate prevention is now handled atomically in GAS.
+// These stubs are kept so existing callers don't break.
 // ============================================================
-let lockInterval=null;
-function acquireLock() {
-  const now=Date.now();
-  const lock=JSON.parse(localStorage.getItem('schedLock')||'{}');
-  if (lock.ts && now-lock.ts < CONFIG.LOCK_TIMEOUT*1000 && lock.id!==state.lockKey) {
-    document.getElementById('lockBanner').classList.add('visible');
-  } else {
-    state.lockKey=Math.random().toString(36).substr(2,9);
-    localStorage.setItem('schedLock',JSON.stringify({id:state.lockKey,ts:now}));
-    document.getElementById('lockBanner').classList.remove('visible');
-    clearInterval(lockInterval);
-    lockInterval=setInterval(renewLock,30000);
-  }
-}
-function renewLock() {
-  const lock=JSON.parse(localStorage.getItem('schedLock')||'{}');
-  if(lock.id===state.lockKey) localStorage.setItem('schedLock',JSON.stringify({id:state.lockKey,ts:Date.now()}));
-}
-function releaseLock() {
-  const lock=JSON.parse(localStorage.getItem('schedLock')||'{}');
-  if(lock.id===state.lockKey) localStorage.removeItem('schedLock');
-  clearInterval(lockInterval);
-}
-window.addEventListener('beforeunload',releaseLock);
+function acquireLock() { /* no-op — server handles this */ }
+function renewLock()   { /* no-op */ }
+function releaseLock() { /* no-op */ }
+window.addEventListener('beforeunload', releaseLock);
 
 // ============================================================
 // BOOKING
@@ -987,65 +971,98 @@ function v(id){return document.getElementById(id).value.trim();}
 async function submitBooking() {
   const btn = document.getElementById('submitBtn');
 
-  // Final race-condition guard: re-check live state before writing to Sheets
+  // Prevent double-click / double-submit immediately
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Processing...';
+
+  // ── CLIENT-SIDE pre-check (fast, catches obvious cases) ──────
   if (isSlotTaken(state.selectedDate, state.selectedSlot)) {
-    showInlineAlert('⚠ This slot was just booked by another user. Please go back and select a different slot.','danger','bookAlert');
+    await refreshDataFromGAS();
+    showInlineAlert('⚠ This slot is already booked. Please go back and choose a different time.', 'danger', 'bookAlert');
+    btn.disabled = false;
+    btn.innerHTML = '📧 Confirm & Send Email';
     return;
   }
 
-  btn.innerHTML = '<span class="spinner"></span> Processing...';
-  btn.disabled = true;
-
   const appt = {
-    id: 'APT-' + Date.now(),
-    lname: v('lname'), fname: v('fname'), mi: v('mi'),
-    dob: v('dob'), address: v('address'), mobile: v('mobile'),
-    email: v('email'), userid: v('userid'), platform: state.selectedPlatform,
-    date: state.selectedDate, time: state.selectedSlot,
-    status: 'Booked', bookedAt: new Date().toISOString()
+    id:       'APT-' + Date.now(),
+    lname:    v('lname'), fname: v('fname'), mi: v('mi'),
+    dob:      v('dob'),   address: v('address'), mobile: v('mobile'),
+    email:    v('email'), userid: v('userid'),
+    platform: state.selectedPlatform,
+    date:     state.selectedDate,
+    time:     state.selectedSlot,
+    status:   'Booked',
+    bookedAt: new Date().toISOString()
   };
 
-  // 1. Optimistically add to local state so THIS browser blocks the slot immediately.
+  // Optimistically mark slot taken in LOCAL state so this browser
+  // blocks it immediately while the server round-trip happens.
   state.appointments.push(appt);
   renderCalendar();
   if (state.selectedDate) renderSlots(state.selectedDate);
 
-  // 2. Fire the POST to Google Sheets (no-cors — we cannot read the response).
-  await sendToGAS('book', appt);
+  // Keep polling fast so OTHER browsers see it grey out quickly.
+  startPolling(5000);
 
-  // 3. Show a "verifying" message while we confirm the booking landed in Sheets.
-  btn.innerHTML = '<span class="spinner"></span> Verifying...';
+  btn.innerHTML = '<span class="spinner"></span> Saving to server...';
 
-  // 4. Keep polling ACTIVE during verification so OTHER browsers also see the slot grey out.
-  //    We do NOT call stopPolling() here.
-  startPolling(5000); // fast poll while verifying
+  // ── SERVER-SIDE atomic check + write ────────────────────────
+  const result = await sendToGAS('book', appt);
 
-  // 5. Poll GAS until the appointment ID appears in the sheet (max 20 s).
-  const confirmed = await verifyBookingInSheets(appt.id, 20000);
-
-  // 6. Do a final authoritative sync so all local state matches Sheets exactly.
-  await refreshDataFromGAS();
-
-  // 7. Back to normal poll rate.
-  startPolling(15000);
-
-  if (!confirmed) {
-    // GAS didn't confirm in time — show a soft warning but don't block the user.
-    // The email will still send because GAS processes async; slot is likely saved.
-    console.warn('[submitBooking] Booking not confirmed in 20s — may still be processing.');
+  if (result && result.code === 'SLOT_TAKEN') {
+    // Server rejected it — remove the optimistic entry and tell the user.
+    state.appointments = state.appointments.filter(a => a.id !== appt.id);
+    await refreshDataFromGAS(); // sync real state from Sheets
+    startPolling(8000);
+    showInlineAlert('⚠ Sorry — this slot was just taken by another user. Please go back and choose a different time.', 'danger', 'bookAlert');
+    btn.disabled = false;
+    btn.innerHTML = '📧 Confirm & Send Email';
+    // Auto-go back to slot selection
+    setTimeout(() => goStep(2), 300);
+    return;
   }
 
-  // 8. Advance to Success screen.
+  if (result && result.code === 'LOCK_TIMEOUT') {
+    // GAS was busy — remove optimistic entry and ask user to retry
+    state.appointments = state.appointments.filter(a => a.id !== appt.id);
+    await refreshDataFromGAS();
+    startPolling(8000);
+    showInlineAlert('⚠ Server was busy. Please click Confirm again in a moment.', 'warning', 'bookAlert');
+    btn.disabled = false;
+    btn.innerHTML = '📧 Confirm & Send Email';
+    return;
+  }
+
+  if (result && result.code === 'NETWORK_ERROR') {
+    // Can't reach GAS — verify by polling before declaring success
+    btn.innerHTML = '<span class="spinner"></span> Verifying...';
+    const confirmed = await verifyBookingInSheets(appt.id, 20000);
+    if (!confirmed) {
+      state.appointments = state.appointments.filter(a => a.id !== appt.id);
+      await refreshDataFromGAS();
+      startPolling(15000);
+      showInlineAlert('⚠ Could not reach the server. Please check your connection and try again.', 'danger', 'bookAlert');
+      btn.disabled = false;
+      btn.innerHTML = '📧 Confirm & Send Email';
+      return;
+    }
+  }
+
+  // ── SUCCESS ─────────────────────────────────────────────────
+  // Do a final authoritative sync so state exactly matches Sheets.
+  await refreshDataFromGAS();
+  startPolling(15000);
+
   document.querySelectorAll('.step-content').forEach(s => s.classList.remove('active'));
   document.getElementById('sc-done').classList.add('active');
-
   document.getElementById('confirmedEmail').textContent = appt.email;
   document.getElementById('confirmedDetails').innerHTML = `
     <div class="summary-row"><span class="summary-label">Appointment ID</span><span class="summary-val">${appt.id}</span></div>
     <div class="summary-row"><span class="summary-label">Date &amp; Time</span><span class="summary-val">${formatDateDisplay(appt.date)} at ${appt.time}</span></div>
-    <div class="summary-row"><span class="summary-label">Status</span><span class="summary-val">${confirmed ? '✅ Confirmed in system' : '⏳ Processing — email will arrive shortly'}</span></div>
+    <div class="summary-row"><span class="summary-label">Status</span><span class="summary-val">✅ Confirmed</span></div>
   `;
-
   releaseLock();
 }
 
@@ -1359,18 +1376,21 @@ async function sendToGAS(action, data) {
     return { success: true, _simulated: true };
   }
   try {
-    // Use no-cors POST (GAS Web Apps require this from external origins).
-    // We cannot read the response body with no-cors, so we verify by polling.
-    await fetch(CONFIG.GAS_URL, {
+    // GAS Web Apps redirect POST requests. Using 'follow' + no explicit mode
+    // lets the browser follow the redirect and read the JSON response body.
+    // This is the only way to get server-side error codes (e.g. SLOT_TAKEN).
+    const response = await fetch(CONFIG.GAS_URL, {
       method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain' }, // text/plain avoids CORS preflight
       body: JSON.stringify({ action, ...data })
     });
-    return { success: true };
+    const json = await response.json();
+    return json;
   } catch(e) {
     console.error('GAS POST error:', e);
-    return { success: false, error: e.message };
+    // Network failure — fall back so caller can decide what to do
+    return { success: false, error: e.message, code: 'NETWORK_ERROR' };
   }
 }
 
